@@ -1,0 +1,832 @@
+<meta charset="utf-8">
+<title>Cosmic Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;800&family=Nunito+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+<style>
+[hidden]{display:none!important}
+/* Layout: one centered column on a night-sky ground. Form, then the year: timeline first, then themes, windows, months, retrogrades and eclipses. */
+:root{
+  --bg:#12102B; --bg2:#1B1840; --panel:#201C4A; --line:#3A3470;
+  --fg:#F4F1FF; --muted:#B7B0DA; --violet:#8B5CF6; --pink:#FF5C8A; --cyan:#4DE8E0; --amber:#FFD166; --coral:#FF8A5B;
+  --display:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --body:"Nunito Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --glyph:"Segoe UI Symbol","Apple Symbols","Noto Sans Symbols 2",serif;
+  --rainbow:linear-gradient(90deg,var(--coral),var(--pink),var(--cyan),var(--violet));
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--body);font-size:16px;line-height:1.6;margin:0;padding-inline:16px;padding-block:0 64px;overflow-x:hidden}
+#sky{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.wrap{position:relative;z-index:1;max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+header.top{display:flex;justify-content:space-between;align-items:center;padding-block:20px 0}
+.mark{font-family:var(--display);font-weight:800;letter-spacing:.32em;font-size:14px}
+.mark span{color:var(--cyan)}
+.tag{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.08em}
+.hero{display:flex;flex-direction:column;gap:12px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(34px,7vw,64px);line-height:1.04;margin:0;text-wrap:balance;letter-spacing:-.02em}
+h1 em,.grad{font-style:normal;background:var(--rainbow);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lede{color:var(--muted);font-size:18px;max-width:60ch;margin:0}
+h2{font-family:var(--display);font-weight:800;font-size:clamp(24px,4vw,32px);line-height:1.15;margin:0;text-wrap:balance}
+h3{font-family:var(--display);font-weight:800;font-size:18px;line-height:1.3;margin:0;text-wrap:balance}
+p{margin:0}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan)}
+.muted{color:var(--muted)}
+.panel{background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line);border-radius:18px;padding:22px;backdrop-filter:blur(6px)}
+.sec{display:flex;flex-direction:column;gap:16px}
+.sechead{display:flex;flex-direction:column;gap:6px}
+/* form */
+form.birth{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:start}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+label{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.02em}
+input,select{font:inherit;color:var(--fg);background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;box-sizing:border-box;min-width:0}
+input:disabled{opacity:.45}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+#cityList{position:absolute;z-index:5;top:100%;left:0;right:0;margin:4px 0 0;padding:6px;list-style:none;background:var(--bg2);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.45);max-height:320px;overflow-y:auto}
+#cityList li{padding:9px 10px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+#cityList li small{font-family:var(--mono);color:var(--muted);font-size:11px;white-space:nowrap}
+#cityList li[aria-selected="true"],#cityList li:hover{background:color-mix(in srgb,var(--violet) 30%,var(--bg2))}
+#cityList li.empty{cursor:default;color:var(--muted)}
+#cityList li.empty:hover{background:none}
+.linkbtn{background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:12px;text-decoration:underline;cursor:pointer;align-self:flex-start}
+.linkbtn:hover{color:var(--cyan)}
+.check{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted);font-weight:600}
+.check input{width:18px;height:18px;accent-color:var(--pink)}
+.btn{font-family:var(--display);font-weight:800;font-size:16px;border:0;border-radius:999px;padding:14px 22px;cursor:pointer;color:#12102B;background:var(--rainbow);background-size:200% 100%;transition:background-position .4s,transform .15s}
+.btn:hover{background-position:100% 0}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.6;cursor:wait}
+.formfoot{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.note{font-size:13px;color:var(--muted)}
+.err{color:var(--pink);font-weight:700;font-size:14px}
+.example{display:inline-flex;gap:8px;align-items:center;font-family:var(--mono);font-size:12px;color:var(--amber);border:1px dashed var(--amber);border-radius:999px;padding:5px 12px;align-self:flex-start}
+/* result head */
+.big3{display:flex;flex-wrap:wrap;gap:8px 18px;font-family:var(--mono);font-size:13px;color:var(--muted)}
+.big3 b{color:var(--fg);font-weight:600}
+.big3 .g{font-family:var(--glyph)}
+.notime{border-left:3px solid var(--amber);padding:10px 14px;background:color-mix(in srgb,var(--amber) 8%,var(--panel));border-radius:0 10px 10px 0;font-size:14px;color:var(--muted)}
+/* milestone */
+.milestone{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;border:1px solid var(--amber);background:linear-gradient(120deg,color-mix(in srgb,var(--amber) 16%,var(--panel)),var(--panel))}
+.milestone .gl{font-family:var(--glyph);font-size:52px;line-height:1;color:var(--amber)}
+.milestone .when{font-family:var(--mono);font-size:13px;color:var(--amber)}
+@media (max-width:520px){.milestone{grid-template-columns:1fr}}
+/* timeline */
+.tlwrap{overflow-x:auto}
+#timeline{display:block;width:100%;min-width:640px;height:auto}
+#timeline text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:14px;height:10px;border-radius:3px;display:inline-block}
+/* birthday */
+.bday{display:flex;flex-direction:column;gap:8px;border:1px solid color-mix(in srgb,var(--pink) 55%,transparent);background:linear-gradient(120deg,color-mix(in srgb,var(--pink) 14%,var(--panel)),var(--panel))}
+.bday .when{font-family:var(--mono);font-size:13px;color:var(--pink)}
+/* themes */
+.themes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.theme{display:flex;flex-direction:column;gap:8px;padding:20px;border-radius:16px;background:var(--panel);border:1px solid var(--line);min-width:0}
+.theme .top{display:flex;gap:12px;align-items:center}
+.theme .gl{font-family:var(--glyph);font-size:30px;line-height:1;width:36px;text-align:center}
+.theme .dates{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.theme p{color:var(--muted)}
+.pill{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;border:1px solid currentColor;align-self:flex-start}
+.p-conj{color:var(--amber)} .p-harm{color:var(--cyan)} .p-hard{color:var(--pink)}
+/* windows */
+.wins{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.wincol{display:flex;flex-direction:column;gap:12px}
+.wincol ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.win{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:14px;border-radius:12px;background:var(--bg2);border:1px solid var(--line)}
+.win .d{font-family:var(--mono);font-size:13px;font-weight:600;line-height:1.35;font-variant-numeric:tabular-nums}
+.win p{font-size:15px;color:var(--muted)}
+.go .win{border-left:3px solid var(--cyan)} .go .win .d{color:var(--cyan)}
+.low .win{border-left:3px solid var(--pink)} .low .win .d{color:var(--pink)}
+/* months */
+.months{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.month{display:flex;flex-direction:column;gap:8px;padding:20px;border-radius:16px;background:var(--panel);border:1px solid var(--line);min-width:0}
+.month .mname{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.month p{font-size:15px;color:var(--muted)}
+.month .energy{font-size:14px;color:var(--fg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chip{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:99px;background:var(--bg2);border:1px solid var(--line);white-space:nowrap}
+.c-go{color:var(--cyan);border-color:color-mix(in srgb,var(--cyan) 50%,transparent)}
+.c-low{color:var(--pink);border-color:color-mix(in srgb,var(--pink) 50%,transparent)}
+.c-rx{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 50%,transparent)}
+.c-ecl{color:var(--violet);border-color:color-mix(in srgb,var(--violet) 70%,transparent)}
+.c-bday{color:var(--coral);border-color:color-mix(in srgb,var(--coral) 60%,transparent)}
+/* rx + eclipses */
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.list{display:flex;flex-direction:column;gap:12px}
+.item{display:flex;flex-direction:column;gap:4px;padding:16px;border-radius:12px;background:var(--bg2);border:1px solid var(--line)}
+.item .d{font-family:var(--mono);font-size:13px;font-weight:600}
+.item p{font-size:15px;color:var(--muted)}
+footer{color:var(--muted);font-size:13px;text-align:center;padding-top:8px}
+footer a{color:inherit}
+.loading{font-family:var(--mono);color:var(--muted);font-size:14px}
+@media (prefers-reduced-motion:reduce){.btn{transition:none}}
+
+/* calendar */
+.dlgrid{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+@media (max-width:760px){.dlgrid{grid-template-columns:1fr}}
+.types{display:flex;flex-direction:column;gap:8px}
+.type{display:grid;grid-template-columns:20px 12px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-radius:10px;background:var(--bg2);border:1px solid var(--line);cursor:pointer;font-size:15px;color:var(--fg);font-weight:600}
+.type input{width:18px;height:18px;accent-color:var(--pink)}
+.type .sw{width:12px;height:12px;border-radius:99px}
+.type b{font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:600}
+.seg{display:flex;flex-direction:column;gap:8px}
+.seg label{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:10px;background:var(--bg2);border:1px solid var(--line);cursor:pointer;font-size:15px;color:var(--fg);font-weight:600}
+.seg input{accent-color:var(--pink);width:18px;height:18px}
+.dl .btn{align-self:flex-start}
+.calhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.navb{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);color:var(--fg);font-size:22px;cursor:pointer}
+.navb:disabled{opacity:.3;cursor:default}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.dow{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;padding-bottom:2px}
+.cell{aspect-ratio:1;max-width:100%;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--fg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font:inherit;padding:2px}
+.cell.empty{border:0;background:none}
+.cell.out{opacity:.25;cursor:default}
+.cell.sel{outline:2px solid var(--cyan);outline-offset:1px}
+.cell .num{font-family:var(--mono);font-size:13px;font-weight:600}
+.cell .dots{display:flex;gap:3px;min-height:6px}
+.cell .dots i{width:6px;height:6px;border-radius:99px;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:10px;height:10px;border-radius:99px;display:inline-block}
+.list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.item{display:flex;flex-direction:column;gap:4px;padding:14px 16px;border-radius:12px;background:var(--bg2);border:1px solid var(--line)}
+.item .d{font-family:var(--mono);font-size:12px;font-weight:600}
+.item p{font-size:14px;color:var(--muted)}
+.howto{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.how{padding:18px;border-radius:14px;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.how ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:15px}
+.how b{color:var(--fg)}
+</style>
+
+<canvas id="sky" aria-hidden="true"></canvas>
+<div class="wrap">
+  <header class="top">
+    <div class="mark">COSMIC<span>.</span></div>
+    <div class="tag" id="todayTag"></div>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">Cosmic Calendar · Your next 12 months</div>
+    <h1>Every big date of your year, <em>right in your phone.</em></h1>
+    <p class="lede">Enter your birth details. Your Cosmic Calendar puts every date from your forecast into your phone, with reminders: go-for-it windows, lay-low weeks, retrogrades, eclipses, moons, and your birthday year.</p>
+  </section>
+
+  <section class="panel">
+    <form class="birth" id="birthForm" novalidate>
+      <div class="field"><label for="fName">First name</label><input id="fName" autocomplete="given-name" placeholder="Maya"></div>
+      <div class="field"><label for="fDate">Birth date</label><input id="fDate" type="date"></div>
+      <div class="field"><label for="fTime">Birth time</label><input id="fTime" type="time"></div>
+      <div class="field"><label for="fCity">Birth city</label>
+        <div style="position:relative">
+          <input id="fCity" type="text" autocomplete="off" placeholder="Start typing, like Tulsa" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cityList">
+          <ul id="cityList" role="listbox" hidden></ul>
+        </div>
+        <button type="button" class="linkbtn" id="manualToggle">Enter coordinates instead</button>
+      </div>
+      <div class="field" id="otherLat" hidden><label for="fLat">Latitude</label><input id="fLat" type="number" step="0.01" placeholder="40.71"></div>
+      <div class="field" id="otherLon" hidden><label for="fLon">Longitude</label><input id="fLon" type="number" step="0.01" placeholder="-74.01"></div>
+      <div class="field" id="otherTz" hidden><label for="fTz">Time zone</label><select id="fTz"></select></div>
+      <div class="formfoot">
+        <label class="check"><input type="checkbox" id="fNoTime"> I don't know my birth time</label>
+        <button class="btn" type="submit" id="goBtn">Make my calendar</button>
+      </div>
+      <div class="formfoot"><span class="note">Your birth time makes it sharper. No time? You still get your full year.</span><span class="err" id="formErr" role="alert"></span></div>
+    </form>
+  </section>
+
+  <div id="results" class="wrap"><p class="loading">Loading the sky…</p></div>
+
+  <footer>Cosmic Calendar is for fun and self-reflection. Planet positions use real astronomical data. City data from <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0).</footer>
+</div>
+
+<script>
+const CAL_DAYS = null; const CAL_TITLE = "Cosmic Calendar"; const CAL_SLUG = "cosmic-calendar";
+/* ======================= DATA ======================= */
+const VS = "︎";
+const SIGNS = [
+  {n:"Aries",g:"♈"},{n:"Taurus",g:"♉"},{n:"Gemini",g:"♊"},{n:"Cancer",g:"♋"},{n:"Leo",g:"♌"},{n:"Virgo",g:"♍"},
+  {n:"Libra",g:"♎"},{n:"Scorpio",g:"♏"},{n:"Sagittarius",g:"♐"},{n:"Capricorn",g:"♑"},{n:"Aquarius",g:"♒"},{n:"Pisces",g:"♓"}
+];
+const GLYPH = {Sun:"☉",Moon:"☽",Mercury:"☿",Venus:"♀",Mars:"♂",Jupiter:"♃",Saturn:"♄",Uranus:"♅",Neptune:"♆",Pluto:"♇"};
+const PLANET_COLOR = {Jupiter:"var(--amber)",Saturn:"var(--muted)",Uranus:"var(--cyan)",Neptune:"var(--violet)",Pluto:"var(--pink)"};
+const POINT_NAME = {Sun:"Sun",Moon:"Moon",Venus:"Venus",Mars:"Mars",Rising:"Rising sign",Midheaven:"Midheaven"};
+const ASP = {0:{n:"conjunct",fam:"conj",tag:"Direct hit"},60:{n:"sextile",fam:"harm",tag:"Easy flow"},90:{n:"square",fam:"hard",tag:"Pressure"},120:{n:"trine",fam:"harm",tag:"Easy flow"},180:{n:"opposite",fam:"hard",tag:"Pressure"}};
+
+const HOUSE = ["","you, your look, and fresh starts","money and what you're worth","texts, ideas, and short trips","home and family","love, fun, and creativity","daily routines, work, and health habits","partners and close relationships","shared money, trust, and deep bonds","travel, learning, and big ideas","career and reputation","friends, groups, and future goals","rest, healing, and letting go"];
+const MONTH_TITLE = ["","Reinvention month","Money month","Talk-it-out month","Home month","Fun and romance month","Reset-your-routine month","Relationship month","Deep-trust month","Adventure month","Career month","Squad month","Rest month"];
+const MONTH_DO = ["",
+"Change your hair, your bio, or your whole plan.",
+"Raise your prices, start a savings habit, or ask for more.",
+"Send the text, pitch the idea, start the class.",
+"Fix up your space and call your family.",
+"Say yes to dates, hobbies, and anything that makes you laugh.",
+"Start the new routine. Small habits stick this month.",
+"Talk honestly with your person, or meet a new one.",
+"Clear a debt, have the deep talk, let go of a grudge.",
+"Book the trip or sign up for the course.",
+"Go for the role, the raise, or the big launch.",
+"Show up for your people and set one big goal.",
+"Sleep more, journal, and say no without guilt."];
+const RX_HOUSE = ["",
+"Your look and your plans. Wait on the big rebrand.",
+"Money. Double-check payments and skip big purchases.",
+"Texts, emails, and cars. Reread before you hit send.",
+"Home. Expect repairs, old family stuff, or moving delays.",
+"Love and fun. Exes text back. Think before you reply.",
+"Work and health. Back up your files and reconfirm appointments.",
+"Partners. Old relationship stuff comes back to get sorted.",
+"Shared money and taxes. Read the fine print twice.",
+"Travel. Confirm flights and leave extra time.",
+"Career. Hold off on signing new deals. Redo, don't launch.",
+"Friends and groups. Plans fall through and old friends reach out.",
+"Your mind. Rest and reflect. Old secrets may surface."];
+const YEAR_HOUSE = ["",
+"This is a you year. Put yourself first and start fresh.",
+"This is a money year. Build your income and know your worth.",
+"This is a learning and talking year. Your words open doors.",
+"This is a home year. Roots, family, and maybe a move.",
+"This is a joy year. Love, fun, and creative projects lead the way.",
+"This is a habits year. Your daily routine changes everything.",
+"This is a partnership year. Who you team up with matters most.",
+"This is a transformation year. Deep change, shared money, and trust.",
+"This is an adventure year. Travel, study, and bigger thinking.",
+"This is a career year. You're being seen, so step up.",
+"This is a community year. Your people lift you up.",
+"This is a quiet reset year. Rest now so next year can take off."];
+
+const TRANSIT = {
+ Jupiter:{
+  Sun:"Your confidence grows and people notice you. Doors open when you put yourself out there.",
+  Moon:"Home and family feel lucky. A move, a bigger space, or a happier home life is likely.",
+  Venus:"Love and money get easier. A great stretch to date, ask for more, or treat yourself.",
+  Mars:"Your energy and courage go way up. Big goals feel doable, so go after them.",
+  Rising:"A fresh-start glow. You look and feel more like yourself, and new chances find you.",
+  Midheaven:"Career luck. Promotions, new clients, or a public win are on the table."},
+ Saturn:{
+  Sun:"A serious, grown-up stretch. You get tested, and you come out stronger and clearer.",
+  Moon:"Feelings get heavy and home needs work. Build the steady life you actually want.",
+  Venus:"Love and money get real. Weak bonds crack and strong ones commit.",
+  Mars:"Slow progress that sticks. Push too hard and you hit walls. Steady wins.",
+  Rising:"You're rebuilding how you show up. Health, habits, and boundaries matter most.",
+  Midheaven:"Career pressure that leads to real results. Work hard now and get the credit later."},
+ Uranus:{
+  Sun:"Big surprises and sudden freedom. Parts of your life that felt stuck break open.",
+  Moon:"Home and feelings shake up. A sudden move or a family change is possible.",
+  Venus:"Love and money surprise you. Out-of-nowhere crushes, or a sudden change in what you want.",
+  Mars:"Restless energy. You want to break rules and try something wild.",
+  Rising:"You reinvent yourself. New look, new vibe, new direction.",
+  Midheaven:"Career plot twist. A sudden job change or a brand new path."},
+ Neptune:{
+  Sun:"A dreamy, foggy stretch. Big creativity and strong gut feelings, so double-check the facts.",
+  Moon:"Feelings run deep and soft. Rest more and protect your energy.",
+  Venus:"Romance feels like a movie. Enjoy it, and keep your eyes open.",
+  Mars:"Your drive gets quiet. Follow what inspires you, not what pressures you.",
+  Rising:"People see you as more magical, even when you feel unsure who you are.",
+  Midheaven:"Your calling gets clearer, even if the path to it feels foggy."},
+ Pluto:{
+  Sun:"A deep power shift. Old versions of you fall away so a stronger one can show up.",
+  Moon:"Deep emotional change. Old family stuff comes up so you can finally let it go.",
+  Venus:"Intense changes in love and money. What you value transforms.",
+  Mars:"Huge willpower. You can push through almost anything right now.",
+  Rising:"A full glow-up from the inside out. People notice the change.",
+  Midheaven:"Career power moves. You step into more control and influence."}
+};
+const FAM_LINE = {
+  conj:"This one is a direct hit, so you'll feel it personally.",
+  harm:"This one flows easily. Use it on purpose.",
+  hard:"This one brings pressure, and the pressure is how you grow."
+};
+const GO_WHY = {
+  Jupiter:"Luck is on your side. Ask big.",
+  Venus:"Your charm is turned up. Great for dates, pitches, and photos.",
+  Sun:"You're in the spotlight. Get seen.",
+  Mars:"Energy spike. Start the hard thing."
+};
+const LOW_WHY = {
+  Saturn:"Heavy stretch. Do the boring work and skip big promises.",
+  Mars:"Short fuses all around. Pick your battles.",
+  Pluto:"Power struggles. Don't sign anything under pressure.",
+  Uranus:"Expect the unexpected. Keep plans loose.",
+  Neptune:"Foggy thinking. Double-check everything.",
+  Mercury:"Mercury retrograde. Redo, don't start.",
+  Eclipse:"Eclipse week. Plot twists happen. Hold off on big moves."
+};
+const RETURN_TXT = {
+  Saturn:{title:"Your Saturn return",body:"This is the famous \"grow up or get humbled\" moment that hits around ages 29 and 58. Life asks what's real. Cut what isn't working and commit to what is. Lots of people look back on this as the year their life really started."},
+  Jupiter:{title:"Your Jupiter return",body:"This happens about every 12 years and starts a brand new luck cycle. Plant seeds now. What you start this year can keep growing for the next twelve."}
+};
+
+/* ======================= HELPERS ======================= */
+const $ = s => document.querySelector(s);
+const norm = x => ((x % 360) + 360) % 360;
+const R = Math.PI / 180, DAY = 86400000;
+const signOf = lon => Math.floor(norm(lon) / 30);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sep = (a, b) => Math.abs(((a - b + 540) % 360) - 180); // 0..180
+const fmt = ms => new Date(ms).toLocaleDateString("en-US", {month:"short", day:"numeric", timeZone:"UTC"});
+const fmtY = ms => new Date(ms).toLocaleDateString("en-US", {month:"short", day:"numeric", year:"numeric", timeZone:"UTC"});
+
+function tzOffsetMs(ts, tz){
+  const p = new Intl.DateTimeFormat("en-US",{timeZone:tz,hourCycle:"h23",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date(ts));
+  const v = {}; p.forEach(x => v[x.type] = x.value);
+  return Date.UTC(+v.year, +v.month - 1, +v.day, +v.hour % 24, +v.minute, +v.second) - Math.floor(ts / 1000) * 1000;
+}
+function zonedToUtc(y, mo, d, h, mi, tz){
+  const wall = Date.UTC(y, mo - 1, d, h, mi); let guess = wall;
+  for (let i = 0; i < 4; i++){ const next = wall - tzOffsetMs(guess, tz); if (next === guess) break; guess = next; }
+  return new Date(guess);
+}
+function ascMc(time, lat, lon){
+  const T = time.tt / 36525, eps = (23.4392911 - 0.0130042 * T) * R;
+  const ramc = norm(Astronomy.SiderealTime(time) * 15 + lon) * R;
+  return {
+    asc: norm(Math.atan2(Math.cos(ramc), -(Math.sin(ramc) * Math.cos(eps) + Math.tan(lat * R) * Math.sin(eps))) / R),
+    mc: norm(Math.atan2(Math.sin(ramc), Math.cos(ramc) * Math.cos(eps)) / R)
+  };
+}
+function lonOf(body, t){
+  if (body === "Sun") return Astronomy.SunPosition(t).elon;
+  if (body === "Moon") return Astronomy.EclipticGeoMoon(t).lon;
+  return Astronomy.Ecliptic(Astronomy.GeoVector(body, t, true)).elon;
+}
+
+/* ======================= ENGINE ======================= */
+function castNatal({date, time, noTime, lat, lon, tz}){
+  const [y, mo, d] = date.split("-").map(Number);
+  const hasTime = !(noTime || !time);
+  const [h, mi] = hasTime ? time.split(":").map(Number) : [12, 0];
+  const t = Astronomy.MakeTime(zonedToUtc(y, mo, d, h, mi, tz));
+  const b = {};
+  ["Sun","Moon","Mercury","Venus","Mars","Jupiter","Saturn"].forEach(k => b[k] = lonOf(k, t));
+  let asc = null, mc = null;
+  if (hasTime){ ({asc, mc} = ascMc(t, lat, lon)); }
+  return {b, asc, mc, hasTime, lat, lon};
+}
+
+function forecast(natal, startMs){
+  const s0 = new Date(startMs);
+  const START = Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth(), s0.getUTCDate(), 12);
+  const END = Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth() + 12, 0, 12);
+  const N = Math.round((END - START) / DAY) + 1;
+  const dayMs = i => START + i * DAY;
+  const houseBase = natal.hasTime ? signOf(natal.asc) : signOf(natal.b.Sun);
+  const house = lon => ((signOf(lon) - houseBase + 12) % 12) + 1;
+
+  const points = [["Sun", natal.b.Sun], ["Moon", natal.b.Moon], ["Venus", natal.b.Venus], ["Mars", natal.b.Mars]];
+  if (natal.hasTime){ points.push(["Rising", natal.asc], ["Midheaven", natal.mc]); }
+
+  // 1. daily positions (plus one extra day for Mercury direction)
+  const BODIES = ["Sun","Mercury","Venus","Mars","Jupiter","Saturn","Uranus","Neptune","Pluto"];
+  const pos = {}; BODIES.forEach(k => pos[k] = new Float64Array(N + 1));
+  for (let i = 0; i <= N; i++){ const t = Astronomy.MakeTime(new Date(dayMs(i))); BODIES.forEach(k => pos[k][i] = lonOf(k, t)); }
+
+  // 2. slow transits to natal points
+  const SLOW = [
+    {k:"Jupiter", orb:2, asps:[0,60,90,120,180], w:3},
+    {k:"Saturn",  orb:2, asps:[0,90,120,180],    w:4},
+    {k:"Uranus",  orb:1.5, asps:[0,90,120,180],  w:4},
+    {k:"Neptune", orb:1.5, asps:[0,90,120,180],  w:4},
+    {k:"Pluto",   orb:1.5, asps:[0,90,120,180],  w:5}];
+  const PW = {Sun:3, Moon:3, Rising:3, Midheaven:3, Venus:2, Mars:2};
+  const AW = {0:1.3, 180:1.1, 90:1.1, 120:.9, 60:.6};
+  function scan(tp, ptName, ptLon, asp, orb){
+    const runs = []; let cur = null;
+    for (let i = 0; i < N; i++){
+      const o = Math.abs(sep(pos[tp][i], ptLon) - asp);
+      if (o <= orb){ if (!cur){ cur = {s:i, e:i, best:i, bo:o}; } cur.e = i; if (o < cur.bo){ cur.bo = o; cur.best = i; } }
+      else if (cur){ runs.push(cur); cur = null; }
+    }
+    if (cur) runs.push(cur);
+    const merged = [];
+    runs.forEach(r => { const last = merged[merged.length - 1];
+      if (last && r.s - last.e <= 90){ last.e = r.e; last.passes++; if (r.bo < last.bo){ last.bo = r.bo; last.best = r.best; } }
+      else merged.push({...r, passes:1}); });
+    return merged.map(m => ({tp, pt:ptName, asp, s:m.s, e:m.e, exact:m.best, passes:m.passes, ongoingStart:m.s === 0, ongoingEnd:m.e === N - 1}));
+  }
+  let themes = [];
+  SLOW.forEach(sp => points.forEach(([pn, pl]) => sp.asps.forEach(a => scan(sp.k, pn, pl, a, sp.orb).forEach(w => { w.weight = sp.w * PW[pn] * AW[a]; themes.push(w); }))));
+  themes.sort((a, b) => b.weight - a.weight);
+  const seen = new Set(); themes = themes.filter(w => { const key = w.tp + w.pt; if (seen.has(key)) return false; seen.add(key); return true; });
+
+  const returns = [];
+  [["Saturn", natal.b.Saturn], ["Jupiter", natal.b.Jupiter]].forEach(([k, l]) => scan(k, k, l, 0, 2.5).forEach(w => returns.push(w)));
+
+  // 3. Mercury retrogrades
+  const rx = []; let r = null;
+  for (let i = 0; i < N; i++){
+    const back = ((pos.Mercury[i + 1] - pos.Mercury[i] + 540) % 360) - 180 < 0;
+    if (back && !r) r = {s:i, e:i, lon:pos.Mercury[i]};
+    if (back) r.e = i + 1;
+    if (!back && r){ rx.push(r); r = null; }
+  }
+  if (r){ r.ongoingEnd = true; rx.push(r); }
+  rx.forEach(x => { x.house = house(x.lon); x.sign = signOf(x.lon); x.ongoingStart = x.s === 0; x.e = Math.min(x.e, N - 1); });
+
+  // 4. eclipses
+  const ecl = [];
+  try {
+    let le = Astronomy.SearchLunarEclipse(new Date(START - 5 * DAY));
+    while (le.peak.date.getTime() < END + DAY){ if (le.peak.date.getTime() >= START - DAY / 2) ecl.push({type:"lunar", kind:le.kind, ms:le.peak.date.getTime(), lon:norm(Astronomy.SunPosition(le.peak).elon + 180)}); le = Astronomy.NextLunarEclipse(le.peak); }
+    let se = Astronomy.SearchGlobalSolarEclipse(new Date(START - 5 * DAY));
+    while (se.peak.date.getTime() < END + DAY){ if (se.peak.date.getTime() >= START - DAY / 2) ecl.push({type:"solar", kind:se.kind, ms:se.peak.date.getTime(), lon:Astronomy.SunPosition(se.peak).elon}); se = Astronomy.NextGlobalSolarEclipse(se.peak); }
+  } catch(e){}
+  ecl.sort((a, b) => a.ms - b.ms);
+  ecl.forEach(e => { e.house = house(e.lon); e.sign = signOf(e.lon); e.day = Math.round((Date.UTC(new Date(e.ms).getUTCFullYear(), new Date(e.ms).getUTCMonth(), new Date(e.ms).getUTCDate(), 12) - START) / DAY);
+    let hit = null, ho = 99; points.forEach(([pn, pl]) => { const o = sep(e.lon, pl); if (o <= 5 && o < ho){ ho = o; hit = pn; } }); e.hit = hit; });
+
+  // 5. daily go / lay-low scores
+  const GO = [{k:"Jupiter",orb:2,w:3,asps:[0,60,120]},{k:"Venus",orb:3,w:1.5,asps:[0,60,120]},{k:"Sun",orb:3,w:1,asps:[0,60,120]},{k:"Mars",orb:2,w:1,asps:[60,120]}];
+  const LOW = [{k:"Saturn",orb:2,w:3,asps:[0,90,180]},{k:"Mars",orb:2,w:1.5,asps:[0,90,180]},{k:"Pluto",orb:1.5,w:2,asps:[0,90,180]},{k:"Uranus",orb:1.5,w:1.5,asps:[90,180]},{k:"Neptune",orb:1.5,w:1.5,asps:[90,180]}];
+  const GPW = {Sun:1.2, Moon:.8, Venus:1, Mars:.6, Rising:1, Midheaven:1.2};
+  const LPW = {Sun:1.2, Moon:1, Venus:.8, Mars:.8, Rising:1, Midheaven:1};
+  const go = new Float64Array(N), low = new Float64Array(N), goWhy = [], lowWhy = [], jupOn = new Uint8Array(N);
+  const rxDay = new Uint8Array(N); rx.forEach(x => { for (let i = x.s; i <= x.e && i < N; i++) rxDay[i] = 1; });
+  const eclDay = new Int16Array(N).fill(-1); ecl.forEach((e, ei) => { for (let i = e.day - 4; i <= e.day + 4; i++) if (i >= 0 && i < N) eclDay[i] = ei; });
+  for (let i = 0; i < N; i++){
+    let bg = 0, bl = 0, wg = null, wl = null;
+    GO.forEach(g => points.forEach(([pn, pl]) => g.asps.forEach(a => { const o = Math.abs(sep(pos[g.k][i], pl) - a); if (o <= g.orb){ const c = g.w * GPW[pn] * (1 - o / g.orb); go[i] += c;
+      if (g.k === "Jupiter"){ jupOn[i] = 1; if (!wg && c > bg){ bg = c; wg = {tp:g.k, pt:pn, asp:a}; } }
+      else { const cc = c * 3; if (cc > bg || (wg && wg.tp === "Jupiter")){ bg = cc; wg = {tp:g.k, pt:pn, asp:a}; } } } })));
+    LOW.forEach(g => points.forEach(([pn, pl]) => g.asps.forEach(a => { const o = Math.abs(sep(pos[g.k][i], pl) - a); if (o <= g.orb){ const c = g.w * LPW[pn] * (1 - o / g.orb); low[i] += c; if (c > bl){ bl = c; wl = {tp:g.k, pt:pn, asp:a}; } } })));
+    if (rxDay[i]){ low[i] += 1.5; if (1.5 > bl){ bl = 1.5; wl = {tp:"Mercury"}; } }
+    if (eclDay[i] >= 0){ const ew = {penumbral:1.2, partial:2}[ecl[eclDay[i]].kind] || 2.5; low[i] += ew; if (ew > bl){ bl = ew; wl = {tp:"Eclipse"}; } }
+    goWhy.push(wg); lowWhy.push(wl);
+  }
+  const smooth = a => { const o = new Float64Array(N); for (let i = 0; i < N; i++){ let s = 0, c = 0; for (let j = i - 2; j <= i + 2; j++) if (j >= 0 && j < N){ s += a[j]; c++; } o[i] = s / c; } return o; };
+  const goS = smooth(go), lowS = smooth(low);
+  function pick(score, raw, why, count){
+    const idx = [...score.keys()].sort((a, b) => score[b] - score[a]); const chosen = [];
+    const key = w => w ? w.tp + (w.pt || "") + (w.asp ?? "") : "";
+    for (const i of idx){ if (score[i] <= 0.15 || chosen.length >= count) break;
+      if (why[i] && chosen.filter(c => key(c.why) === key(why[i])).length >= (why[i].tp === "Eclipse" ? 2 : 1)) continue;
+      if (chosen.every(c => Math.abs(c.peak - i) >= 21)){
+      let s = i, e = i; while (s > 0 && i - s < 4 && score[s - 1] >= score[i] * .6) s--; while (e < N - 1 && e - i < 4 && score[e + 1] >= score[i] * .6) e++;
+      let w = why[i], j = 0; while (!w && j < 6){ j++; w = why[i - j] || why[i + j]; }
+      if (w) chosen.push({peak:i, s, e, why:w, jup:jupOn[i] && w.tp !== "Jupiter"}); } }
+    return chosen.sort((a, b) => a.s - b.s);
+  }
+  const goWins = pick(goS, go, goWhy, 5);
+  const lowWins = pick(lowS, low, lowWhy, 3);
+
+  // 6. new moons
+  const newMoons = [];
+  try { let t = Astronomy.SearchMoonPhase(0, Astronomy.MakeTime(new Date(START - 3 * DAY)), 40);
+    while (t && t.date.getTime() < END + DAY){ newMoons.push({ms:t.date.getTime(), lon:Astronomy.SunPosition(t).elon}); t = Astronomy.SearchMoonPhase(0, t.AddDays(1), 40); } } catch(e){}
+
+  // 7. birthday (solar return)
+  let bday = null;
+  try { const sr = Astronomy.SearchSunLongitude(natal.b.Sun, Astronomy.MakeTime(new Date(START - DAY / 2)), 370);
+    if (sr && sr.date.getTime() <= END + DAY){ bday = {ms:sr.date.getTime()};
+      if (natal.hasTime){ const am = ascMc(sr, natal.lat, natal.lon); bday.house = ((signOf(natal.b.Sun) - signOf(am.asc) + 12) % 12) + 1; } } } catch(e){}
+
+  // 8. months
+  const months = [];
+  for (let k = 0; k < 12; k++){
+    const mS = Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth() + k, 1, 12), mE = Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth() + k + 1, 0, 12);
+    const iS = Math.max(0, Math.round((mS - START) / DAY)), iE = Math.min(N - 1, Math.round((mE - START) / DAY));
+    const nm = newMoons.find(n => n.ms >= mS - DAY / 2 && n.ms < mE + DAY / 2);
+    const h = nm ? house(nm.lon) : house(pos.Sun[Math.min(N - 1, Math.round((iS + iE) / 2))]);
+    const mid = (iS + iE) / 2, act = themes.filter(w => w.s <= iE && w.e >= iS);
+    const energy = act.sort((a, b) => (Math.abs(a.exact - mid) - a.weight * 4) - (Math.abs(b.exact - mid) - b.weight * 4))[0];
+    months.push({ms:mS, iS, iE, nm, house:h, energy});
+  }
+  return {START, END, N, dayMs, house, points, themes:themes.slice(0, 6), returns, rx, ecl, goWins, lowWins, goS, lowS, months, bday};
+}
+
+/* ======================= CITY SEARCH ======================= */
+let CITY_DB = null, CITY_LOADING = null;
+const countryName = (() => { let dn = null; try { dn = new Intl.DisplayNames(["en"], {type:"region"}); } catch(e){} return cc => { try { return dn ? dn.of(cc) : cc; } catch(e){ return cc; } }; })();
+const fold = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+function loadCities(){
+  if (CITY_LOADING) return CITY_LOADING;
+  CITY_LOADING = fetch("cities.txt").then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
+    const nl = t.indexOf("\n"), zones = t.slice(0, nl).split(",");
+    CITY_DB = t.slice(nl + 1).split("\n").map(l => { const p = l.split("|"); return {n:p[0], c:p[1], a:p[2], lat:+p[3], lon:+p[4], tz:zones[+p[5]], k:fold(p[0])}; });
+    return CITY_DB;
+  }).catch(e => { CITY_LOADING = null; throw e; });
+  return CITY_LOADING;
+}
+const cityLabel = c => [c.n, c.a, c.c === "US" ? "USA" : countryName(c.c)].filter(Boolean).join(", ");
+function searchCities(q){
+  if (!CITY_DB) return [];
+  const parts = q.split(",").map(fold).filter(Boolean); if (!parts.length) return [];
+  const head = parts[0], rest = parts.slice(1).join(" "), out = [];
+  const okRest = c => !rest || fold(c.a + " " + c.c + " " + countryName(c.c)).includes(rest) || (c.c === "US" && "usa united states".includes(rest));
+  for (const c of CITY_DB){ if (c.k === head && okRest(c)){ out.push(c); if (out.length >= 8) return out; } }
+  for (const c of CITY_DB){ if (c.k !== head && c.k.startsWith(head) && okRest(c)){ out.push(c); if (out.length >= 8) break; } }
+  return out;
+}
+
+/* ======================= RENDER ======================= */
+function dateRange(f, s, e){
+  if (s.ongoingStart && s.ongoingEnd) return "All year";
+  const a = s.ongoingStart ? "Now" : fmt(f.dayMs(s.s)), b = s.ongoingEnd ? fmt(f.dayMs(s.e)) + " and beyond" : fmt(f.dayMs(s.e));
+  return s.s === s.e ? a : `${a} to ${b}`;
+}
+const whyText = w => {
+  if (w.tp === "Mercury" || w.tp === "Eclipse") return LOW_WHY[w.tp];
+  return `${w.tp === "Sun" ? "The Sun" : w.tp} ${ASP[w.asp].n} your ${POINT_NAME[w.pt]}.`;
+};
+
+function timelineSvg(f){
+  const W = 1000, H = 230, top = 26, mid = 112, amp = 74, x = i => 10 + (i / (f.N - 1)) * (W - 20);
+  const net = [...f.goS].map((g, i) => g - f.lowS[i]);
+  const mx = Math.max(1, ...net.map(Math.abs));
+  const y = v => mid - (v / mx) * amp;
+  let pos = `M${x(0)},${mid}`, neg = `M${x(0)},${mid}`;
+  net.forEach((v, i) => { pos += `L${x(i).toFixed(1)},${y(Math.max(v, 0)).toFixed(1)}`; neg += `L${x(i).toFixed(1)},${y(Math.min(v, 0)).toFixed(1)}`; });
+  pos += `L${x(f.N - 1)},${mid}Z`; neg += `L${x(f.N - 1)},${mid}Z`;
+  const bands = f.rx.map(r => `<rect x="${x(r.s)}" y="${top}" width="${Math.max(2, x(r.e) - x(r.s))}" height="${amp * 2 + 12}" fill="var(--amber)" opacity=".10"/><text x="${x(r.s) + 4}" y="${top + 12}" style="fill:var(--amber)">☿${VS} Rx</text>`).join("");
+  const wins = f.goWins.map(w => `<rect x="${x(w.s)}" y="${top}" width="${Math.max(4, x(w.e) - x(w.s))}" height="6" rx="3" fill="var(--cyan)"/>`).join("") +
+               f.lowWins.map(w => `<rect x="${x(w.s)}" y="${mid + amp + 6}" width="${Math.max(4, x(w.e) - x(w.s))}" height="6" rx="3" fill="var(--pink)"/>`).join("");
+  const ecl = f.ecl.filter(e => e.day >= 0 && e.day < f.N).map(e => `<circle cx="${x(e.day)}" cy="${mid}" r="6" fill="var(--bg)" stroke="var(--violet)" stroke-width="2.5"/>`).join("");
+  const bd = f.bday ? (() => { const i = Math.round((Date.UTC(new Date(f.bday.ms).getUTCFullYear(), new Date(f.bday.ms).getUTCMonth(), new Date(f.bday.ms).getUTCDate(), 12) - f.START) / DAY); return i >= 0 && i < f.N ? `<line x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${mid + amp + 12}" stroke="var(--coral)" stroke-dasharray="3 3"/><text x="${x(i) + 4}" y="${mid + amp + 4}" style="fill:var(--coral)">Birthday</text>` : ""; })() : "";
+  const ticks = f.months.map(m => `<line x1="${x(m.iS)}" x2="${x(m.iS)}" y1="${top}" y2="${mid + amp + 14}" stroke="var(--line)"/><text x="${x(m.iS) + 4}" y="${H - 8}">${new Date(m.ms).toLocaleDateString("en-US", {month:"short", timeZone:"UTC"}).toUpperCase()}</text>`).join("");
+  return `<svg id="timeline" viewBox="0 0 ${W} ${H}" role="img" aria-label="Your energy across the next 12 months">
+    ${ticks}${bands}
+    <line x1="10" x2="${W - 10}" y1="${mid}" y2="${mid}" stroke="var(--line)"/>
+    <path d="${pos}" fill="var(--cyan)" opacity=".55"/><path d="${neg}" fill="var(--pink)" opacity=".55"/>
+    ${wins}${ecl}${bd}
+    <text x="10" y="14">GO-FOR-IT</text><text x="10" y="${H - 22}" style="fill:var(--pink)">LAY-LOW</text>
+  </svg>`;
+}
+
+/* ======================= CALENDAR ======================= */
+const FULL_TXT = ["",
+"Something about you and your look comes to a head. Finish what you started.",
+"Money news or a money decision peaks. Count what came in.",
+"A big conversation lands. Say the thing.",
+"Home and family feelings run high. Be gentle.",
+"Love and fun peak. Celebrate something.",
+"Work or health stuff comes to a head. Let one habit go.",
+"A relationship moment peaks. Talk it out.",
+"Shared money or a deep bond gets real. Clear the air.",
+"News from far away, or a class wraps up.",
+"A career moment peaks. Show your work.",
+"A friend or group moment peaks. Show up for your people.",
+"Rest. Let something old go."];
+const TYPES = {
+  go:{label:"Go-for-it windows", color:"var(--cyan)", hex:"#4DE8E0", on:true},
+  low:{label:"Lay-low windows", color:"var(--pink)", hex:"#FF5C8A", on:true},
+  theme:{label:"Big theme peaks", color:"var(--violet)", hex:"#8B5CF6", on:true},
+  rx:{label:"Mercury retrogrades", color:"var(--amber)", hex:"#FFD166", on:true},
+  ecl:{label:"Eclipses", color:"var(--violet)", hex:"#B08CFF", on:true},
+  newm:{label:"New moons", color:"var(--fg)", hex:"#F4F1FF", on:true},
+  fullm:{label:"Full moons", color:"var(--muted)", hex:"#B7B0DA", on:true},
+  month:{label:"Monthly themes", color:"var(--coral)", hex:"#FF8A5B", on:true},
+  special:{label:"Birthday and milestones", color:"var(--coral)", hex:"#FF8A5B", on:true}
+};
+
+function buildEvents(natal, f, limitDays){
+  const ev = [], lastDay = limitDays ? Math.min(f.N - 1, limitDays - 1) : f.N - 1;
+  const add = (type, s, e, title, desc, remind) => { if (s > lastDay) return; ev.push({type, s:Math.max(0, s), e:Math.min(e, lastDay), title, desc, remind}); };
+  const dayOf = ms => { const d = new Date(ms); return Math.round((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12) - f.START) / DAY); };
+
+  f.goWins.forEach(w => add("go", w.s, w.e, "✦ Go-for-it window",
+    `${whyText(w.why)} ${w.why.tp === "Mercury" || w.why.tp === "Eclipse" ? "" : GO_WHY[w.why.tp]}${w.jup ? " Jupiter is boosting it too." : ""} Use these days to launch, pitch, date, ask, and say yes.`, true));
+  f.lowWins.forEach(w => add("low", w.s, w.e, "◐ Lay-low window",
+    `${whyText(w.why)} ${w.why.tp === "Mercury" || w.why.tp === "Eclipse" ? "" : LOW_WHY[w.why.tp]} Keep plans light, double-check details, and hold off on big moves.`, true));
+  f.themes.forEach(w => { if (w.ongoingStart && w.ongoingEnd) return;
+    add("theme", w.exact, w.exact, `${GLYPH[w.tp]}${VS} ${w.tp} ${ASP[w.asp].n} your ${POINT_NAME[w.pt]} peaks`,
+      `${TRANSIT[w.tp][w.pt]} ${FAM_LINE[ASP[w.asp].fam]} This stretch runs ${dateRange(f, w)}.`, false); });
+  f.returns.forEach(w => add("special", w.s, w.s, `★ ${RETURN_TXT[w.tp].title} begins`, `${RETURN_TXT[w.tp].body} Runs ${dateRange(f, w)}.`, true));
+  f.rx.forEach(r => {
+    if (!r.ongoingStart) add("rx", r.s, r.s, "☿ Mercury retrograde begins", `In ${SIGNS[r.sign].n}. Hits your ${HOUSE[r.house]}. ${RX_HOUSE[r.house]} Back up your phone and reread before you send.`, true);
+    if (!r.ongoingEnd) add("rx", r.e, r.e, "☿ Mercury goes direct", `Mercury moves forward again. Give it a few days, then start new things.`, false);
+  });
+  f.ecl.forEach(e => { const d = dayOf(e.ms); if (d < 0) return;
+    add("ecl", d, d, `● ${e.kind[0].toUpperCase() + e.kind.slice(1)} ${e.type} eclipse`,
+      `${e.hit ? `This one lands right on your ${POINT_NAME[e.hit]}, so it's personal. ` : ""}A plot twist around your ${HOUSE[e.house]}. ${e.type === "solar" ? "Something new starts, often by surprise." : "Something ends or comes to a head so you can move on."} Hold off on big moves for a few days.`, true); });
+  f.months.forEach(m => {
+    add("month", m.iS, m.iS, `${new Date(m.ms).toLocaleDateString("en-US", {month:"long", timeZone:"UTC"})}: ${MONTH_TITLE[m.house]}`,
+      `This month is about your ${HOUSE[m.house]}. ${MONTH_DO[m.house]}${m.energy ? ` Big energy: ${m.energy.tp} ${ASP[m.energy.asp].n} your ${POINT_NAME[m.energy.pt]}.` : ""}`, false);
+    if (m.nm){ const d = dayOf(m.nm.ms); if (d >= 0) add("newm", d, d, "☾ New moon reset", `New moon in your ${HOUSE[m.house]}. ${MONTH_DO[m.house]} Set one intention today.`, false); }
+  });
+  // full moons
+  try { let t = Astronomy.SearchMoonPhase(180, Astronomy.MakeTime(new Date(f.START - DAY)), 40);
+    while (t && t.date.getTime() < f.END + DAY){ const d = dayOf(t.date.getTime()); const h = f.house(norm(Astronomy.SunPosition(t).elon + 180));
+      if (d >= 0) add("fullm", d, d, "○ Full moon", `Full moon in your ${HOUSE[h]}. ${FULL_TXT[h]}`, false);
+      t = Astronomy.SearchMoonPhase(180, t.AddDays(1), 40); } } catch(e){}
+  if (f.bday){ const d = dayOf(f.bday.ms); if (d >= 0) add("special", d, d, "★ Your birthday year begins", f.bday.house ? `${YEAR_HOUSE[f.bday.house]} Your birthday chart puts the Sun in your ${HOUSE[f.bday.house]}.` : "Your new year cycle starts today.", true); }
+  return ev.sort((a, b) => a.s - b.s || a.type.localeCompare(b.type));
+}
+
+/* ---------- .ics ---------- */
+const icsEsc = s => String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const ymd = ms => { const d = new Date(ms); return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`; };
+function icsFold(line){ const out = []; let cur = ""; let bytes = 0;
+  for (const ch of line){ const b = new TextEncoder().encode(ch).length; if (bytes + b > (out.length ? 74 : 75)){ out.push(cur); cur = ""; bytes = 0; } cur += ch; bytes += b; }
+  out.push(cur); return out.join("\r\n "); }
+function makeIcs(events, f, name, remind){
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//jadejanosi.com//Cosmic Calendar//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    `X-WR-CALNAME:${icsEsc((name ? name + "'s " : "My ") + CAL_TITLE)}`, "X-WR-CALDESC:Your personal astrology dates. For fun and self-reflection."];
+  events.forEach((e, k) => {
+    L.push("BEGIN:VEVENT", `UID:${ymd(f.dayMs(e.s))}-${e.type}-${k}-${Math.round(f.START / 1000)}@cosmic-calendar`, `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${ymd(f.dayMs(e.s))}`, `DTEND;VALUE=DATE:${ymd(f.dayMs(e.e) + DAY)}`,
+      `SUMMARY:${icsEsc(e.title)}`, `DESCRIPTION:${icsEsc(e.desc)}`, "TRANSP:TRANSPARENT", `CATEGORIES:${icsEsc(TYPES[e.type].label)}`);
+    if (remind !== "none" && e.remind){
+      L.push("BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${icsEsc(e.title)}`, `TRIGGER:${remind === "daybefore" ? "-PT15H" : "PT9H"}`, "END:VALARM");
+    }
+    L.push("END:VEVENT");
+  });
+  L.push("END:VCALENDAR");
+  return L.map(icsFold).join("\r\n") + "\r\n";
+}
+
+/* ---------- render ---------- */
+let CAL = null;
+function render(input, isExample){
+  const natal = castNatal(input);
+  const f = forecast(natal, Date.now());
+  const events = buildEvents(natal, f, CAL_DAYS);
+  CAL = {input, natal, f, events, isExample, view:0, sel:null};
+  const name = input.name || "";
+  const who = name ? esc(name) + "'s" : "Your";
+  const counts = {}; events.forEach(e => counts[e.type] = (counts[e.type] || 0) + 1);
+  const endIdx = CAL_DAYS ? Math.min(f.N - 1, CAL_DAYS - 1) : f.N - 1;
+
+  $("#results").innerHTML = `
+    <section class="sec">
+      ${isExample ? `<span class="example">Example calendar · enter your details above to make yours</span>` : ""}
+      <div class="sechead"><div class="eyebrow">${who} ${CAL_TITLE.toLowerCase()}</div><h2>${events.length} dates, ${fmtY(f.START)} <span class="muted">to</span> ${fmtY(f.dayMs(endIdx))}</h2></div>
+      ${natal.hasTime ? "" : `<p class="notime">No birth time, so life areas are based on your Sun sign. Everything else is exact.</p>`}
+    </section>
+    <section class="panel sec dl">
+      <div class="dlgrid">
+        <div class="sec" style="gap:14px">
+          <div class="sechead"><div class="eyebrow">Step 1</div><h3>Pick what goes in</h3></div>
+          <div class="types">${Object.entries(TYPES).filter(([k]) => counts[k]).map(([k, t]) => `<label class="type"><input type="checkbox" data-type="${k}" ${t.on ? "checked" : ""}><span class="sw" style="background:${t.color}"></span><span>${t.label}</span><b>${counts[k]}</b></label>`).join("")}</div>
+        </div>
+        <div class="sec" style="gap:14px">
+          <div class="sechead"><div class="eyebrow">Step 2</div><h3>Pick your reminders</h3></div>
+          <div class="seg" role="radiogroup" aria-label="Reminders">
+            <label><input type="radio" name="rem" value="daybefore" checked><span>Day before, 9 a.m.</span></label>
+            <label><input type="radio" name="rem" value="morning"><span>Morning of, 9 a.m.</span></label>
+            <label><input type="radio" name="rem" value="none"><span>No reminders</span></label>
+          </div>
+          <p class="note">Reminders go on the big dates: go-for-it and lay-low windows, retrogrades, eclipses, and your birthday.</p>
+          <div class="sechead" style="margin-top:6px"><div class="eyebrow">Step 3</div><h3>Add it to your calendar</h3></div>
+          <button class="btn" type="button" id="dlBtn" ${isExample ? "disabled" : ""}>${isExample ? "Enter your details to make yours" : "Download my calendar"}</button>
+          <span class="note" id="dlMsg" role="status"></span>
+        </div>
+      </div>
+    </section>
+    <section class="panel sec">
+      <div class="calhead"><button class="navb" type="button" id="prevM" aria-label="Previous month">‹</button><h3 id="calTitle"></h3><button class="navb" type="button" id="nextM" aria-label="Next month">›</button></div>
+      <div class="grid" id="calGrid"></div>
+      <div class="legend">${Object.entries(TYPES).filter(([k]) => counts[k]).map(([k, t]) => `<span><i style="background:${t.color}"></i>${t.label}</span>`).join("")}</div>
+      <div id="dayList" class="list"></div>
+    </section>
+    <section class="sec">
+      <div class="sechead"><div class="eyebrow">How to add it</div><h2>Works with every calendar app</h2></div>
+      <div class="howto">
+        <div class="how"><h3>iPhone or iPad</h3><ol><li>Tap <b>Download my calendar</b> in Safari.</li><li>Tap the file, then tap <b>Add All</b>.</li><li>Pick a calendar, or make a new one called "Cosmic".</li></ol></div>
+        <div class="how"><h3>Google Calendar</h3><ol><li>Download the file on a computer.</li><li>Go to calendar.google.com, then <b>Settings</b>, then <b>Import & export</b>.</li><li>Choose the file and click <b>Import</b>. It shows up on your phone too.</li></ol></div>
+        <div class="how"><h3>Mac</h3><ol><li>Download the file.</li><li>Double-click it. Calendar opens.</li><li>Pick a calendar and click <b>OK</b>.</li></ol></div>
+        <div class="how"><h3>Outlook</h3><ol><li>Download the file.</li><li>In Outlook, go to <b>Add calendar</b>, then <b>Upload from file</b>.</li><li>Choose the file and click <b>Import</b>.</li></ol></div>
+      </div>
+      <p class="note">Tip: put it on its own calendar so you can show or hide your cosmic dates with one tap. Google uses your normal notification settings instead of the reminders in the file.</p>
+    </section>`;
+
+  const viewMonths = []; for (let k = 0; k < 12; k++){ const m = f.months[k]; if (m.iS <= endIdx) viewMonths.push(m); }
+  const typeOn = () => { const on = {}; document.querySelectorAll("[data-type]").forEach(c => on[c.dataset.type] = c.checked); return on; };
+  function drawMonth(){
+    const m = viewMonths[CAL.view], d0 = new Date(m.ms), y = d0.getUTCFullYear(), mo = d0.getUTCMonth();
+    $("#calTitle").textContent = d0.toLocaleDateString("en-US", {month:"long", year:"numeric", timeZone:"UTC"});
+    $("#prevM").disabled = CAL.view === 0; $("#nextM").disabled = CAL.view === viewMonths.length - 1;
+    const first = new Date(Date.UTC(y, mo, 1)).getUTCDay(), days = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate(), on = typeOn();
+    let html = ["S","M","T","W","T","F","S"].map(x => `<div class="dow">${x}</div>`).join("");
+    for (let b = 0; b < first; b++) html += `<div class="cell empty"></div>`;
+    for (let dd = 1; dd <= days; dd++){
+      const idx = Math.round((Date.UTC(y, mo, dd, 12) - f.START) / DAY);
+      const evs = events.filter(e => on[e.type] && idx >= e.s && idx <= e.e);
+      const out = idx < 0 || idx > endIdx;
+      html += `<button type="button" class="cell${out ? " out" : ""}${CAL.sel === idx ? " sel" : ""}" data-idx="${idx}" ${out ? "disabled" : ""} aria-label="${fmt(f.dayMs(idx))}, ${evs.length} events"><span class="num">${dd}</span><span class="dots">${evs.slice(0, 4).map(e => `<i style="background:${TYPES[e.type].color}"></i>`).join("")}</span></button>`;
+    }
+    $("#calGrid").innerHTML = html;
+    $("#calGrid").querySelectorAll("button.cell").forEach(b => b.onclick = () => { CAL.sel = +b.dataset.idx; drawMonth(); });
+    drawList(m);
+  }
+  function drawList(m){
+    const on = typeOn(), sel = CAL.sel;
+    const inMonth = events.filter(e => on[e.type] && (sel !== null && sel >= m.iS && sel <= m.iE ? (sel >= e.s && sel <= e.e) : (e.s <= m.iE && e.e >= m.iS)));
+    const head = sel !== null && sel >= m.iS && sel <= m.iE ? `Dates on ${fmt(f.dayMs(sel))}` : "This month's dates";
+    $("#dayList").innerHTML = `<h3 style="grid-column:1/-1;margin-top:6px">${head}</h3>` + (inMonth.length ? inMonth.map(e => `<div class="item" style="border-left:3px solid ${TYPES[e.type].color}"><div class="d" style="color:${TYPES[e.type].color}">${e.s === e.e ? fmt(f.dayMs(e.s)) : fmt(f.dayMs(e.s)) + " to " + fmt(f.dayMs(e.e))}</div><h3>${e.title}</h3><p>${e.desc}</p></div>`).join("") : `<p class="muted">Nothing on this day. Enjoy it.</p>`);
+  }
+  $("#prevM").onclick = () => { CAL.view--; CAL.sel = null; drawMonth(); };
+  $("#nextM").onclick = () => { CAL.view++; CAL.sel = null; drawMonth(); };
+  document.querySelectorAll("[data-type]").forEach(c => c.onchange = drawMonth);
+  drawMonth();
+
+  const btn = $("#dlBtn");
+  if (btn && !isExample) btn.onclick = () => {
+    const on = typeOn(), rem = (document.querySelector("input[name=rem]:checked") || {}).value || "daybefore";
+    const chosen = events.filter(e => on[e.type]);
+    if (!chosen.length){ $("#dlMsg").textContent = "Pick at least one type of date in step 1."; return; }
+    const ics = makeIcs(chosen, f, name, rem);
+    try {
+      const blob = new Blob([ics], {type:"text/calendar;charset=utf-8"}), url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = `${(name || "my").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${CAL_SLUG}.ics`;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+      $("#dlMsg").textContent = `Downloaded ${chosen.length} dates. Follow the steps below for your calendar app.`;
+    } catch(e){ $("#dlMsg").textContent = "Your browser blocked the download. Try opening this page in Safari or Chrome."; }
+  };
+}
+
+/* ======================= FORM ======================= */
+let PICKED = null, MANUAL = false;
+function setupCitySearch(){
+  const inp = $("#fCity"), list = $("#cityList"); let hits = [], active = -1, timer = null;
+  const close = () => { list.hidden = true; inp.setAttribute("aria-expanded", "false"); active = -1; };
+  const paint = () => {
+    list.innerHTML = hits.length ? hits.map((c, i) => `<li role="option" id="city-${i}" data-i="${i}" aria-selected="${i === active}"><span>${esc(cityLabel(c))}</span><small>${c.lat.toFixed(1)}, ${c.lon.toFixed(1)}</small></li>`).join("")
+      : `<li class="empty">No match yet. Try the nearest bigger town, or tap "Enter coordinates instead."</li>`;
+    list.hidden = false; inp.setAttribute("aria-expanded", "true");
+    if (active >= 0) inp.setAttribute("aria-activedescendant", "city-" + active); else inp.removeAttribute("aria-activedescendant");
+  };
+  const pickCity = i => { PICKED = hits[i]; inp.value = cityLabel(PICKED); close(); $("#formErr").textContent = ""; };
+  const run = async () => {
+    const q = inp.value.trim(); PICKED = null;
+    if (q.length < 2){ close(); return; }
+    if (!CITY_DB){ list.innerHTML = `<li class="empty">Loading every city on Earth…</li>`; list.hidden = false;
+      try { await loadCities(); } catch(e){ list.innerHTML = `<li class="empty">The city list didn't load. Refresh the page, or tap "Enter coordinates instead."</li>`; return; } }
+    if (inp.value.trim() !== q) return;
+    hits = searchCities(q); active = hits.length ? 0 : -1; paint();
+  };
+  inp.addEventListener("focus", () => { loadCities().catch(() => {}); });
+  inp.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(run, 120); });
+  inp.addEventListener("keydown", e => {
+    if (list.hidden || !hits.length) return;
+    if (e.key === "ArrowDown"){ e.preventDefault(); active = (active + 1) % hits.length; paint(); }
+    else if (e.key === "ArrowUp"){ e.preventDefault(); active = (active - 1 + hits.length) % hits.length; paint(); }
+    else if (e.key === "Enter" && active >= 0){ e.preventDefault(); pickCity(active); }
+    else if (e.key === "Escape") close();
+  });
+  list.addEventListener("mousedown", e => { const li = e.target.closest("li[data-i]"); if (li){ e.preventDefault(); pickCity(+li.dataset.i); } });
+  inp.addEventListener("blur", () => setTimeout(close, 150));
+  $("#manualToggle").onclick = () => {
+    MANUAL = !MANUAL; ["#otherLat","#otherLon","#otherTz"].forEach(id => $(id).hidden = !MANUAL);
+    inp.disabled = MANUAL; $("#manualToggle").textContent = MANUAL ? "Search for my city instead" : "Enter coordinates instead";
+  };
+}
+function setupForm(){
+  setupCitySearch();
+  let zones = []; try { zones = Intl.supportedValuesOf("timeZone"); } catch(e){ zones = ["UTC"]; }
+  $("#fTz").innerHTML = zones.map(z => `<option>${z}</option>`).join("");
+  try { $("#fTz").value = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e){}
+  $("#fNoTime").onchange = e => { $("#fTime").disabled = e.target.checked; };
+  $("#birthForm").onsubmit = ev => {
+    ev.preventDefault(); const err = $("#formErr"); err.textContent = "";
+    const date = $("#fDate").value, time = $("#fTime").value, noTime = $("#fNoTime").checked;
+    if (!date){ err.textContent = "Add your birth date."; return; }
+    const y = +date.slice(0, 4); if (y < 1900 || y > 2100){ err.textContent = "Use a birth year between 1900 and 2100."; return; }
+    if (!noTime && !time){ err.textContent = "Add your birth time, or tick \"I don't know my birth time.\""; return; }
+    let lat, lon, tz;
+    if (MANUAL){
+      lat = parseFloat($("#fLat").value); lon = parseFloat($("#fLon").value); tz = $("#fTz").value;
+      if (!(lat >= -66 && lat <= 66) || !(lon >= -180 && lon <= 180)){ err.textContent = "Add a latitude between -66 and 66 and a longitude between -180 and 180. Search your city + \"coordinates\" to find them."; return; }
+    } else if (PICKED){ lat = PICKED.lat; lon = PICKED.lon; tz = PICKED.tz; }
+    else { err.textContent = "Start typing your birth city and tap it in the list."; return; }
+    const btn = $("#goBtn"); btn.disabled = true; btn.textContent = "Building your calendar…";
+    setTimeout(() => {
+      try { render({name:$("#fName").value.trim(), date, time, noTime, lat, lon, tz}, false);
+        $("#results").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"}); }
+      catch(e){ err.textContent = "Something went wrong mapping that chart. Check the date and city and try again."; }
+      btn.disabled = false; btn.textContent = "Make my calendar";
+    }, 30);
+  };
+}
+
+/* ======================= SKY + BOOT ======================= */
+function sky(){
+  const cv = $("#sky"), x = cv.getContext("2d"); let stars = [];
+  const size = () => { cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio;
+    stars = Array.from({length: Math.round(innerWidth * innerHeight / 5000)}, () => ({x:Math.random() * cv.width, y:Math.random() * cv.height, r:(Math.random() * 1.2 + .3) * devicePixelRatio, p:Math.random() * 6.28})); };
+  size(); addEventListener("resize", size);
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const frame = t => { x.clearRect(0, 0, cv.width, cv.height);
+    stars.forEach(s => { x.globalAlpha = still ? .6 : .35 + .45 * Math.abs(Math.sin(t / 1600 + s.p)); x.fillStyle = "#F4F1FF"; x.beginPath(); x.arc(s.x, s.y, s.r, 0, 6.28); x.fill(); });
+    if (!still) requestAnimationFrame(frame); };
+  requestAnimationFrame(frame);
+}
+$("#todayTag").textContent = new Date().toLocaleDateString("en-US", {month:"short", day:"numeric", year:"numeric"}).toUpperCase();
+sky(); setupForm();
+function boot(){
+  if (typeof Astronomy === "undefined"){ $("#results").innerHTML = `<p class="err">The star data didn't load. Check your connection and refresh the page.</p>`; return; }
+  render({name:"Maya", date:"1995-03-14", time:"08:30", noTime:false, lat:30.27, lon:-97.74, tz:"America/Chicago"}, true);
+}
+if (document.readyState === "complete") boot(); else addEventListener("load", boot);
+
+/* ======================= EMBED: tell the parent page how tall we are ======================= */
+(function(){
+  if (window.parent === window) return;
+  var last = 0;
+  function send(){ var h = Math.ceil(document.documentElement.scrollHeight); if (Math.abs(h - last) > 2){ last = h; window.parent.postMessage({almanacHeight:h}, "*"); } }
+  try { new ResizeObserver(send).observe(document.body); } catch(e){ setInterval(send, 800); }
+  window.addEventListener("load", send); send();
+})();
+</script>
